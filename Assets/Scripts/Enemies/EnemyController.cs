@@ -6,8 +6,19 @@ using UnityEngine;
 public class EnemyController : MonoBehaviour {
     protected Rigidbody2D rigidbody2D;
 
-    [Header("Parameters Settings")]
+    [Header("Health Settings")]
     [SerializeField] protected float health;
+
+    [Space(5)]
+    [Header("Movement Settings")]
+    [SerializeField] protected float speed;
+
+    [Space(5)]
+    [Header("Attack Settings")]
+    [SerializeField] protected float attackDamage;
+
+    [Space(5)]
+    [Header("Knockback Settings")]
     [SerializeField] protected float knockbackLength;
     [SerializeField] protected float knockbackFactor;
     [SerializeField] protected bool isKnockbacking = false;
@@ -16,21 +27,20 @@ public class EnemyController : MonoBehaviour {
     [Space(5)]
     [Header("AI Settings")]
     [SerializeField] protected PlayerController playerController;
-    [SerializeField] protected float speed;
 
     // Awake is called when the script instance is being loaded
-    public virtual void Awake() {
+    protected virtual void Awake() {
         rigidbody2D = GetComponent<Rigidbody2D>();
         playerController = PlayerController.Instance;
     }
 
     // Start is called before the first frame update
-    public virtual void Start() {
+    protected virtual void Start() {
 
     }
 
     // Update is called once per frame
-    public virtual void Update() {
+    protected virtual void Update() {
         if (health <= 0) Destroy(gameObject);
         if (isKnockbacking) {
             if (knockbackTimer < knockbackLength) {
@@ -40,6 +50,14 @@ public class EnemyController : MonoBehaviour {
                 knockbackTimer = 0;
             }
         }
+    }
+
+    protected void OnTriggerStay2D(Collider2D collision) {
+        if (collision.CompareTag("Player") && !PlayerController.Instance.playerStateList.invincible) Attack();
+    }
+
+    public virtual void Attack() {
+        PlayerController.Instance.TakeDamage(attackDamage);
     }
 
     public virtual void EnemyHit(float damageAmount, Vector2 hitDirection, float hitForce) {

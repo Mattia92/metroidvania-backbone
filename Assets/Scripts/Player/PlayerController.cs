@@ -6,13 +6,19 @@ using static UnityEngine.GraphicsBuffer;
 public class PlayerController : MonoBehaviour {
     // Singleton to reference in other scripts
     public static PlayerController Instance;
+    [HideInInspector] public PlayerStateList playerStateList;
     private Animator anim;
-    private PlayerStateList playerStateList;
     private Rigidbody2D rigidbody2D;
     private float xAxis;
     private float yAxis;
     private float gravity;
 
+    [Header("Health Settings")]
+    [SerializeField] public int health;
+    [SerializeField] public int maxHealth;
+    [SerializeField] private float invincibilityFrameTime = 1f;
+
+    [Space(5)]
     [Header("Movement Settings")]
     [SerializeField] private float walkSpeed = 1;
 
@@ -80,6 +86,7 @@ public class PlayerController : MonoBehaviour {
         playerStateList = GetComponent<PlayerStateList>();
         rigidbody2D = GetComponent<Rigidbody2D>();
 
+        health = maxHealth;
         gravity = rigidbody2D.gravityScale;
     }
 
@@ -110,10 +117,27 @@ public class PlayerController : MonoBehaviour {
         return isOnGround() || isOnGroundEdge();
     }
 
+    public void TakeDamage(float damageAmount) {
+        health -= Mathf.RoundToInt(damageAmount);
+        StartCoroutine(HandleInvincibilityFrames());
+    }
+
+    private IEnumerator HandleInvincibilityFrames() {
+        playerStateList.invincible = true;
+        anim.SetTrigger("TakingDamage");
+        ClampHealth();
+        yield return new WaitForSeconds(invincibilityFrameTime);
+        playerStateList.invincible = false;
+    }
+
     private void GetInputs() {
         xAxis = Input.GetAxisRaw("Horizontal");
         yAxis = Input.GetAxisRaw("Vertical");
         attack = Input.GetMouseButtonDown(0);
+    }
+
+    private void ClampHealth() {
+        health = Mathf.Clamp(health, 0, maxHealth);
     }
 
     private void UpdateJumpVariables() {
@@ -217,7 +241,7 @@ public class PlayerController : MonoBehaviour {
 
         for (int i = 0; i < objectsToHit.Length; i++) {
             if (objectsToHit[i].GetComponent<EnemyController>() != null) {
-                objectsToHit[i].GetComponent<EnemyController>().EnemyHit(attackDamage, transform.position - objectsToHit[i].transform.position.normalized, knockbackStrenght);
+                objectsToHit[i].GetComponent<EnemyController>().EnemyHit(attackDamage, (transform.position - objectsToHit[i].transform.position).normalized, knockbackStrenght);
             }
         }
     }
