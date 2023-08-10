@@ -10,9 +10,8 @@ public class PlayerController : MonoBehaviour {
     private PlayerStateList playerStateList;
     private Rigidbody2D rigidbody2D;
     private float xAxis;
+    private float yAxis;
     private float gravity;
-    private bool canDash = true;
-    private bool hasDashed = false;
 
     [Header("Movement Settings")]
     [SerializeField] private float walkSpeed = 1;
@@ -41,6 +40,32 @@ public class PlayerController : MonoBehaviour {
     [SerializeField] private float dashSpeed;
     [SerializeField] private float dashTime;
     [SerializeField] private float dashCooldown;
+    private bool canDash = true;
+    private bool hasDashed = false;
+
+    [Space(5)]
+    [Header("Attack Settings")]
+    [SerializeField] private GameObject slashEffect;
+    [SerializeField] private Transform sideAttackTransform;
+    [SerializeField] private Transform upAttackTransform;
+    [SerializeField] private Transform downAttackTransform;
+    [SerializeField] private Vector2 sideAttackArea;
+    [SerializeField] private Vector2 upAttackArea;
+    [SerializeField] private Vector2 downAttackArea;
+    [SerializeField] private LayerMask whatIsAttackable;
+    [SerializeField] private float attackDamage;
+    private float attackTime;
+    private float attackCooldown;
+    private bool attack = false;
+
+    [Space(5)]
+    [Header("Knockback Settings")]
+    [SerializeField] private int knockbackXSteps = 0;
+    [SerializeField] private int knockbackYSteps = 0;
+    [SerializeField] private float knockbackXSpeed = 0f;
+    [SerializeField] private float knockbackYSpeed = 0f;
+    private int stepsXKnockbacked;
+    private int stepsYKnockbacked;
 
     // Awake is called when the script instance is being loaded
     void Awake() {
@@ -58,6 +83,13 @@ public class PlayerController : MonoBehaviour {
         gravity = rigidbody2D.gravityScale;
     }
 
+    private void OnDrawGizmos() {
+        Gizmos.color = Color.red;
+        Gizmos.DrawWireCube(sideAttackTransform.position, sideAttackArea);
+        Gizmos.DrawWireCube(upAttackTransform.position, upAttackArea);
+        Gizmos.DrawWireCube(downAttackTransform.position, downAttackArea);
+    }
+
     // Update is called once per frame
     void Update() {
         GetInputs();
@@ -70,6 +102,8 @@ public class PlayerController : MonoBehaviour {
         Move();
         Jump();
         StartDash();
+        Attack();
+        Knockback();
     }
 
     public bool Grounded() {
@@ -78,6 +112,8 @@ public class PlayerController : MonoBehaviour {
 
     private void GetInputs() {
         xAxis = Input.GetAxisRaw("Horizontal");
+        yAxis = Input.GetAxisRaw("Vertical");
+        attack = Input.GetMouseButtonDown(0);
     }
 
     private void UpdateJumpVariables() {
@@ -94,6 +130,7 @@ public class PlayerController : MonoBehaviour {
 
     private void Flip() {
         transform.localScale = new Vector2(xAxis < 0 ? -1 : (xAxis == 0 ? transform.localScale.x : 1), transform.localScale.y);
+        playerStateList.lookingRight = xAxis < 0 ? false : (xAxis == 0 ? playerStateList.lookingRight : true);
     }
 
     private void Move() {
@@ -147,6 +184,83 @@ public class PlayerController : MonoBehaviour {
         playerStateList.dashing = false;
         yield return new WaitForSeconds(dashCooldown);
         canDash = true;
+    }
+
+    private void Attack() {
+        attackTime += Time.deltaTime;
+        if (attack && attackTime >= attackCooldown) {
+            attackTime = 0;
+            anim.SetTrigger("Attacking");
+
+            if (yAxis == 0 || (yAxis < 0 && Grounded())) {
+                // Attack on side if not moving up / down or moving down but on ground
+                Hit(sideAttackTransform, sideAttackArea, ref playerStateList.knockbackingX, knockbackXSpeed);
+                Instantiate(slashEffect, sideAttackTransform);
+            } else if (yAxis > 0) {
+                // Attack up if moving up
+                Hit(upAttackTransform, upAttackArea, ref playerStateList.knockbackingY, knockbackYSpeed);
+                SlashEffectAngle(slashEffect, 90, upAttackTransform);
+            } else if (yAxis < 0 && !Grounded()) {
+                // Attack down if moving down and not on ground
+                Hit(downAttackTransform, downAttackArea, ref playerStateList.knockbackingY, knockbackYSpeed);
+                SlashEffectAngle(slashEffect, -90, downAttackTransform);
+            }
+        }
+    }
+
+    private void Hit(Transform attackTransform, Vector2 attackArea, ref bool knockbackDir, float knockbackStrenght) {
+        Collider2D[] objectsToHit = Physics2D.OverlapBoxAll(attackTransform.position, attackArea, 0, whatIsAttackable);
+
+        if (objectsToHit.Length > 0) {
+            knockbackDir = true;
+        }
+
+        for (int i = 0; i < objectsToHit.Length; i++) {
+            if (objectsToHit[i].GetComponent<EnemyController>() != null) {
+                objectsToHit[i].GetComponent<EnemyController>().EnemyHit(attackDamage, transform.position - objectsToHit[i].transform.position.normalized, knockbackStrenght);
+            }
+        }
+    }
+
+    private void SlashEffectAngle(GameObject slashEffect, int effectAngle, Transform attackTransform) {
+        slashEffect = Instantiate(slashEffect, attackTransform);
+
+        // Rotate slash effect
+        slashEffect.transform.eulerAngles = new Vector3(0, 0, effectAngle);
+        // Stretch slash effect to fit attack area
+        slashEffect.transform.localScale = new Vector2(transform.localScale.x, transform.localScale.y);
+
+    }
+
+    private void Knockback() {
+        if (playerStateList.knockbackingX) {
+            rigidbody2D.velocity = new Vector2(playerStateList.lookingRight ? -knockbackXSpeed : knockbackXSpeed, 0);
+        }
+
+        if (playerStateList.knockbackingY) {
+            rigidbody2D.gravityScale = 0;
+            rigidbody2D.velocity = new Vector2(rigidbody2D.velocity.x, yAxis < 0 ? knockbackYSpeed : -knockbackYSpeed);
+            airJumpCounter = 0;
+        } else {
+            rigidbody2D.gravityScale = gravity;
+        }
+
+        // Stop knockback
+        if (playerStateList.knockbackingX && stepsXKnockbacked < knockbackXSteps) stepsXKnockbacked++;
+        else StopKnockbackX();
+        if (playerStateList.knockbackingY && stepsYKnockbacked < knockbackYSteps) stepsYKnockbacked++;
+        else StopKnockbackY();
+        if (Grounded()) StopKnockbackY();
+    }
+
+    private void StopKnockbackX() {
+        stepsXKnockbacked = 0;
+        playerStateList.knockbackingX = false;
+    }
+
+    private void StopKnockbackY() {
+        stepsYKnockbacked = 0;
+        playerStateList.knockbackingY = false;
     }
 
     private bool isOnGround() {
