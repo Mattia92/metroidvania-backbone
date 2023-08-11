@@ -53,7 +53,10 @@ public class EnemyController : MonoBehaviour {
     }
 
     protected void OnTriggerStay2D(Collider2D collision) {
-        if (collision.CompareTag("Player") && !PlayerController.Instance.playerStateList.invincible) Attack();
+        if (collision.CompareTag("Player") && !PlayerController.Instance.playerStateList.invincible) {
+            Attack();
+            PlayerController.Instance.HitStopTime(0, 5, 0.5f);
+        }
     }
 
     public virtual void Attack() {

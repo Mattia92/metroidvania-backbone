@@ -9,6 +9,7 @@ public class PlayerController : MonoBehaviour {
     [HideInInspector] public PlayerStateList playerStateList;
     private Animator anim;
     private Rigidbody2D rigidbody2D;
+    private SpriteRenderer spriteRenderer;
     private float xAxis;
     private float yAxis;
     private float gravity;
@@ -16,7 +17,19 @@ public class PlayerController : MonoBehaviour {
     [Header("Health Settings")]
     [SerializeField] public int health;
     [SerializeField] public int maxHealth;
+    // Delegate function that handles any update needed for health
+    public delegate void OnHealthChangedDelegate();
+    [HideInInspector] public OnHealthChangedDelegate onHealthChangedCallback;
+
+    [Space(5)]
+    [Header("Damage Settings")]
+    [SerializeField] private GameObject damagePE;
+    [SerializeField] private float damageFlashSpeed;
+    [SerializeField] private float damagePETime = 1.5f;
     [SerializeField] private float invincibilityFrameTime = 1f;
+    // Stop time when player damaged
+    private bool restoreTime;
+    private float restoreTimeSpeed;
 
     [Space(5)]
     [Header("Movement Settings")]
@@ -52,12 +65,19 @@ public class PlayerController : MonoBehaviour {
     [Space(5)]
     [Header("Attack Settings")]
     [SerializeField] private GameObject slashEffect;
+    // The middle of the side attack area
     [SerializeField] private Transform sideAttackTransform;
-    [SerializeField] private Transform upAttackTransform;
-    [SerializeField] private Transform downAttackTransform;
+    // How large the area of side attack is
     [SerializeField] private Vector2 sideAttackArea;
+    // The middle of the up attack area
+    [SerializeField] private Transform upAttackTransform;
+    // How large the area of up attack is
     [SerializeField] private Vector2 upAttackArea;
+    // The middle of the down attack area
+    [SerializeField] private Transform downAttackTransform;
+    // How large the area of down attack is
     [SerializeField] private Vector2 downAttackArea;
+    // The layer the player can attack and knockback off
     [SerializeField] private LayerMask whatIsAttackable;
     [SerializeField] private float attackDamage;
     private float attackTime;
@@ -85,8 +105,9 @@ public class PlayerController : MonoBehaviour {
         anim = GetComponent<Animator>();
         playerStateList = GetComponent<PlayerStateList>();
         rigidbody2D = GetComponent<Rigidbody2D>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
 
-        health = maxHealth;
+        Health = maxHealth;
         gravity = rigidbody2D.gravityScale;
     }
 
@@ -95,6 +116,13 @@ public class PlayerController : MonoBehaviour {
         Gizmos.DrawWireCube(sideAttackTransform.position, sideAttackArea);
         Gizmos.DrawWireCube(upAttackTransform.position, upAttackArea);
         Gizmos.DrawWireCube(downAttackTransform.position, downAttackArea);
+    }
+
+    private void FixedUpdate() {
+        // Dash cannot be interrupted by movements
+        if (playerStateList.dashing) return;
+
+        Knockback();
     }
 
     // Update is called once per frame
@@ -110,34 +138,78 @@ public class PlayerController : MonoBehaviour {
         Jump();
         StartDash();
         Attack();
-        Knockback();
+        RestoreTimeScale();
+        FlashWhileInvincible();
     }
 
     public bool Grounded() {
         return isOnGround() || isOnGroundEdge();
     }
 
+    public int Health {
+        get { return health; }
+        set {
+            if (health != value) {
+                health = Mathf.Clamp(value, 0, maxHealth);
+                if (onHealthChangedCallback != null) {
+                    onHealthChangedCallback.Invoke();
+                }
+            }
+        }
+    }
+
     public void TakeDamage(float damageAmount) {
-        health -= Mathf.RoundToInt(damageAmount);
+        Health -= Mathf.RoundToInt(damageAmount);
         StartCoroutine(HandleInvincibilityFrames());
+    }
+
+    public void HitStopTime(float newTimeScale, int restoreSpeed, float delay) {
+        restoreTimeSpeed = restoreSpeed;
+        Time.timeScale = newTimeScale;
+
+        // Player has taken damage
+        if (delay > 0) {
+            StopCoroutine(StartTimeAgain(delay));
+            StartCoroutine(StartTimeAgain(delay));
+        } else {
+            restoreTime = true;
+        }
     }
 
     private IEnumerator HandleInvincibilityFrames() {
         playerStateList.invincible = true;
+        GameObject damageParticleEffect = Instantiate(damagePE, transform.position, Quaternion.identity);
+        Destroy(damageParticleEffect, damagePETime);
         anim.SetTrigger("TakingDamage");
-        ClampHealth();
         yield return new WaitForSeconds(invincibilityFrameTime);
         playerStateList.invincible = false;
+    }
+
+    private void FlashWhileInvincible() {
+        // Change from white to black and back to white and keep diong so so long as the parameters are fulfilled
+        spriteRenderer.material.color = playerStateList.invincible ? Color.Lerp(Color.white, Color.black, Mathf.PingPong(Time.time * damageFlashSpeed, 1.0f)) : Color.white;
+    }
+
+    private IEnumerator StartTimeAgain(float delay) {
+        restoreTime = true;
+        yield return new WaitForSeconds(delay);
+    }
+
+    private void RestoreTimeScale() {
+        if (restoreTime) {
+            if (Time.timeScale < 1) {
+                Time.timeScale += Time.deltaTime * restoreTimeSpeed;
+            } else {
+                Time.timeScale = 1;
+                restoreTime = false;
+            }
+        }
     }
 
     private void GetInputs() {
         xAxis = Input.GetAxisRaw("Horizontal");
         yAxis = Input.GetAxisRaw("Vertical");
-        attack = Input.GetMouseButtonDown(0);
-    }
-
-    private void ClampHealth() {
-        health = Mathf.Clamp(health, 0, maxHealth);
+        attack = Input.GetButtonDown("Attack");
     }
 
     private void UpdateJumpVariables() {
