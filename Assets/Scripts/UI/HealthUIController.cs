@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -40,10 +38,6 @@ public class HealthUIController : MonoBehaviour {
 
     private void SetHealthContainers() {
         for (int i = 0; i < healthContainerList.Length; i++) {
-            Debug.Log(i);
-            Debug.Log(PlayerController.Instance.maxHealth);
-            Debug.Log(healthContainerList.Length);
-            Debug.Log(healthContainerList[i]);
             healthContainerList[i].SetActive(i < PlayerController.Instance.maxHealth);
         }
     }

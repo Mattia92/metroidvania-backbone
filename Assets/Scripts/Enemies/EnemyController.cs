@@ -1,6 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
-using Unity.VisualScripting;
 using UnityEngine;
 
 public class EnemyController : MonoBehaviour {
@@ -52,8 +49,8 @@ public class EnemyController : MonoBehaviour {
         }
     }
 
-    protected void OnTriggerStay2D(Collider2D collision) {
-        if (collision.CompareTag("Player") && !PlayerController.Instance.playerStateList.invincible) {
+    protected void OnCollisionStay2D(Collision2D collision) {
+        if (collision.gameObject.CompareTag("Player") && !PlayerController.Instance.playerStateList.invincible) {
             Attack();
             PlayerController.Instance.HitStopTime(0, 5, 0.5f);
         }
