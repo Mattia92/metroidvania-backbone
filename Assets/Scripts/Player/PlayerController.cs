@@ -118,6 +118,9 @@ public class PlayerController : MonoBehaviour {
         // Destroy any duplicate to keep Singleton
         if (Instance != null && Instance != this) Destroy(gameObject);
         else Instance = this;
+
+        // Keep singleton between scenes
+        DontDestroyOnLoad(gameObject);
     }
 
     // Start is called before the first frame update
@@ -297,23 +300,24 @@ public class PlayerController : MonoBehaviour {
     }
 
     private void Jump() {
-        // Condition to handle jump height
-        if (Input.GetButtonUp("Jump") && rigidbody2D.velocity.y > 0) {
-            if (enableJumpHeight) rigidbody2D.velocity = new Vector2(rigidbody2D.velocity.x, 0);
-            playerStateList.jumping = false;
+        // Condition to enable jump
+        if (!playerStateList.jumping && jumpBufferCounter > 0 && coyoteTimeCounter > 0) {
+            playerStateList.jumping = true;
+            rigidbody2D.velocity = new Vector3(rigidbody2D.velocity.x, jumpForce);
         }
 
-        if (!playerStateList.jumping) {
-            // Condition to enable jump
-            if (jumpBufferCounter > 0 && coyoteTimeCounter > 0) {
-                rigidbody2D.velocity = new Vector3(rigidbody2D.velocity.x, jumpForce);
-                playerStateList.jumping = true;
-            } else if (!Grounded() && airJumpCounter < maxAirJumps && Input.GetButtonDown("Jump")) {
-                rigidbody2D.velocity = new Vector3(rigidbody2D.velocity.x, jumpForce);
-                playerStateList.jumping = true;
-                airJumpCounter++;
-            }
+        if (!Grounded() && airJumpCounter < maxAirJumps && Input.GetButtonDown("Jump")) {
+            playerStateList.jumping = true;
+            airJumpCounter++;
+            rigidbody2D.velocity = new Vector3(rigidbody2D.velocity.x, jumpForce);
         }
+
+        // Condition to handle jump height
+        if (Input.GetButtonUp("Jump") && rigidbody2D.velocity.y > 3) {
+            playerStateList.jumping = false;
+            if (enableJumpHeight) rigidbody2D.velocity = new Vector2(rigidbody2D.velocity.x, 0);
+        }
+
         // Start Jumping animation
         anim.SetBool("Jumping", !Grounded());
     }
@@ -334,7 +338,7 @@ public class PlayerController : MonoBehaviour {
         playerStateList.dashing = true;
         anim.SetTrigger("Dashing");
         rigidbody2D.gravityScale = 0;
-        rigidbody2D.velocity = new Vector2(transform.localScale.x * dashSpeed, 0);
+        rigidbody2D.velocity = new Vector2(dashSpeed * (playerStateList.lookingRight ? 1 : -1), 0);
         if (Grounded()) Instantiate(dashEffect, transform);
         yield return new WaitForSeconds(dashTime);
         rigidbody2D.gravityScale = gravity;

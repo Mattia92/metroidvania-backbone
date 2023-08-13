@@ -21,19 +21,9 @@ public class EnemyController : MonoBehaviour {
     [SerializeField] protected bool isKnockbacking = false;
     protected float knockbackTimer;
 
-    [Space(5)]
-    [Header("AI Settings")]
-    [SerializeField] protected PlayerController playerController;
-
-    // Awake is called when the script instance is being loaded
-    protected virtual void Awake() {
-        rigidbody2D = GetComponent<Rigidbody2D>();
-        playerController = PlayerController.Instance;
-    }
-
     // Start is called before the first frame update
     protected virtual void Start() {
-
+        rigidbody2D = GetComponent<Rigidbody2D>();
     }
 
     // Update is called once per frame
